@@ -102,9 +102,9 @@ static void page_init(void) {
     for(int i=0;i<npage;i++){
     SetPageReserved(&pages[i]);
     }
-    uintptr_t freedom = ROUNDUP((uintptr_t)pages+sizeof(struct Page) * npage,PGSIZE);
+    uintptr_t freedmem = ROUNDUP((uintptr_t)pages+sizeof(struct Page) * npage,PGSIZE);
 	cprintf("pages array at: 0x%08lx\n", (uintptr_t)pages);
-	cprintf("free memory start at: 0x%08lx\n", freedom);
+	cprintf("free memory start at: 0x%08lx\n", freedmem);
 	cprintf("total pages: %d\n", npage);
 
 	// find the corresponding management structure
@@ -114,7 +114,7 @@ static void page_init(void) {
 	 SetPageReserved(page); //marked as reserved state
 	}
 	// free space
-	uintptr_t free_pages_start =PADDR(ROUNDUP(freedom, PGSIZE));
+	uintptr_t free_pages_start =PADDR(ROUNDUP(freedmem, PGSIZE));
 	size_t free_pages_count = (maxpa - free_pages_start) / PGSIZE;
 
 	cprintf("free pages: start=0x%08lx, count=%lu\n", free_pages_start, free_pages_count);
