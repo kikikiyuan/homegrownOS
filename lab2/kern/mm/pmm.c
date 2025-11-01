@@ -96,7 +96,31 @@ static void page_init(void) {
 
     extern char end[];
 	//lab2 todo
+    npage =maxpa/PGSIZE;
+    //
+    pages =(struct Page*)ROUNDUP((void*)end,PGSIZE);
+    for(int i=0;i<npage;i++){
+    SetPageReserved(&pages[i]);
+    }
+    uintptr_t freedom = ROUNDUP((uintptr_t)pages+sizeof(struct Page) * npage,PGSIZE);
+	cprintf("pages array at: 0x%08lx\n", (uintptr_t)pages);
+	cprintf("free memory start at: 0x%08lx\n", freedom);
+	cprintf("total pages: %d\n", npage);
 
+	// find the corresponding management structure
+	uintptr_t firmware_end = ROUNDUP(0x910000, PGSIZE);
+	for (uintptr_t pa = 0; pa < firmware_end; pa += PGSIZE) {
+   	 struct Page *page = pa2page(pa);
+	 SetPageReserved(page); //marked as reserved state
+	}
+	// free space
+	uintptr_t free_pages_start =PADDR(ROUNDUP(freedom, PGSIZE));
+	size_t free_pages_count = (maxpa - free_pages_start) / PGSIZE;
+
+	cprintf("free pages: start=0x%08lx, count=%lu\n", free_pages_start, free_pages_count);
+
+	// initial
+	init_memmap(pa2page(free_pages_start), free_pages_count);
 
 
 
