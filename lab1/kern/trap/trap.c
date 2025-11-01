@@ -94,7 +94,11 @@ void do_entIF(struct trapframe *tf) {
 
     // 打印非法指令信息
     cprintf("Illegal instruction at PC = 0x%lx, Instruction = 0x%x\n", pc, instruction);
-    panic("Illegal instruction encountered, system halted.\n");
+    // 替换非法指令为 NOP（0x43ff075f）
+    unsigned int nop_instruction = 0x43ff075f;  // NOP 指令的编码
+
+    // 将 PC 指向的非法指令替换为 NOP
+    *(volatile unsigned int *)pc = nop_instruction;
 }
 
 static inline void print_pgfault(struct trapframe *tf) {
