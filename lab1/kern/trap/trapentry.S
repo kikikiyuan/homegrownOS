@@ -86,6 +86,12 @@ entMM:
 .align(4)
 entIF:
 //todo 
+    SAVE_ALL
+	ldi $16,3($31) 
+    STORE $16, 29*REGBYTES($sp)
+	ldi $26, __trapret
+	mov $sp, $16
+    call $31, trap
  
 
     .globl __trapret

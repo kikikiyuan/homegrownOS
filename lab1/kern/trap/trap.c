@@ -85,6 +85,16 @@ void print_regs(struct pushregs *gpr) {
 
 void do_entIF(struct trapframe *tf) {
 	//todo:
+    // 获取当前 PC 指向的内存内容
+    unsigned long pc = tf->gpr.pc;
+    unsigned int instruction;
+
+    // 假设系统是 32 位，尝试读取 PC 指向的内存，获取指令内容
+    instruction = *(volatile unsigned int *)pc;
+
+    // 打印非法指令信息
+    cprintf("Illegal instruction at PC = 0x%lx, Instruction = 0x%x\n", pc, instruction);
+    panic("Illegal instruction encountered, system halted.\n");
 }
 
 static inline void print_pgfault(struct trapframe *tf) {
@@ -119,6 +129,9 @@ void exception_handler(struct trapframe *tf) {
     switch (tf->gpr.cause) {
 		case 2:
 			pgfault_handler(tf);
+            break;
+        case 3:
+			do_entIF(tf);
             break;
 		//todo:
         default:
