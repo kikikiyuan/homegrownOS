@@ -383,11 +383,42 @@ do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr) {
 	cprintf(" todo create a pte\n");
     //(1) try to find a pte, if pte's PT(Page Table) isn't existed, then
 	//create a PT.
-	while(1);
+ptep = get_pte(mm->pgdir, addr, 1);  // 1 means we create the page table if it doesn't exist
+
+    if (ptep == NULL) {
+        cprintf("Failed to allocate page table entry for address %x\n", addr);
+        goto failed;  // If get_pte fails, handle the failure
+    }
+
+    /* 
+     * Now we can insert the new page for this address (if necessary).
+     * If the page is not present in memory, we allocate a page and insert it.
+     * Otherwise, the page table entry is already present and valid.
+     */
+    if (!(*ptep & PTE_V)) {
+        // The page is not present, we need to allocate a physical page
+        struct Page *page = alloc_page();
+        if (page == NULL) {
+            cprintf("Out of memory, failed to allocate physical page\n");
+            goto failed;
+        }
+
+        // Insert the allocated page into the page table
+        set_page_ref(page, 1);  // Set reference count for the page
+        uintptr_t pa = page2pa(page);
+        *ptep = pte_create(page2ppn(page), perm | PTE_V);  // Set up the page table entry with appropriate flags
+
+        // Zero out the page content (since it is a new page)
+        memset(KADDR(pa), 0, PGSIZE);
+
+        // Optionally, set up any additional metadata for the page here (e.g., page mappings).
+    }
+
+    // If we've reached this point, the page is mapped correctly, and the fault is resolved.
+ // Successfully handled the page fault
 
 
    ret = 0;
 failed:
     return ret;
 }
-

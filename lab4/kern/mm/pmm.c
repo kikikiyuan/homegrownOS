@@ -222,7 +222,44 @@ pte_t *get_pte(pde_t *pgdir, uintptr_t la, bool create) {
 
 	//lab4 todo 
 	cprintf("implement the func:%s\n",__func__);
-	while(1);
+	// Ensure pdep0 is initialized before use
+    // Step 1: 找到一级页目录项 pdep1
+    pdep1 = (pde_t *)KADDR(PDE_ADDR(*pdep2));  // 根据一级页目录项物理地址找到对应的虚拟地址
+    if (!(*pdep1 & PTE_V)) {
+        // 如果一级页目录项无效，需要分配新的二级页表
+        if (!create) {
+            return NULL;  // 如果不创建，返回 NULL
+        }
+
+        struct Page *page = alloc_page();
+        if (page == NULL) {
+            return NULL;  // 如果分配失败，返回 NULL
+        }
+
+        set_page_ref(page, 1);
+        uintptr_t pa = page2pa(page);
+        memset(KADDR(pa), 0, PGSIZE);
+        *pdep1 = pte_create(page2ppn(page), PTE_V | PTE_W);  // 设置 PTE_V 和 PTE_W 标志
+    }
+
+    // Step 2: 找到二级页目录项 pdep0
+    pdep0 = (pde_t *)KADDR(PDE_ADDR(*pdep1));  // 同样，转化为虚拟地址
+    if (!(*pdep0 & PTE_V)) {
+        // 如果二级页目录项无效，需要分配新的物理页
+        if (!create) {
+            return NULL;  // 如果不创建，返回 NULL
+        }
+
+        struct Page *page = alloc_page();
+        if (page == NULL) {
+            return NULL;  // 如果分配失败，返回 NULL
+        }
+
+        set_page_ref(page, 1);
+        uintptr_t pa = page2pa(page);
+        memset(KADDR(pa), 0, PGSIZE);
+        *pdep0 = pte_create(page2ppn(page), PTE_V | PTE_W);  // 设置 PTE_V 和 PTE_W 标志
+    }
 
 
     return &((pte_t *)KADDR(PDE_ADDR(*pdep0)))[PTX(la)];
@@ -270,7 +307,25 @@ static inline void page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
 	 //lab4 todo 
 	 
 	cprintf("implement the func:%s\n",__func__);
-	while(1);
+	
+    // (1) Check if the page table entry is valid (present)
+    if (!(*ptep & PTE_V)) {
+        return;  // If the page table entry is not present, just return
+    }
+
+    // (2) Get the corresponding page for this ptep
+    struct Page *page = pte2page(*ptep);
+
+    // (3) Decrease the reference count of the page
+    page_ref_dec(page);
+
+    // (4) If the page reference count reaches 0, free the page
+    if (page->ref == 0) {
+        free_page(page);
+    }
+
+    // (5) Clear the second-level page table entry
+    *ptep = 0;  // Mark the entry as invalid by clearing it
 
      //(1) check if this page table entry is
 
