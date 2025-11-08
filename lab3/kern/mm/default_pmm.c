@@ -91,22 +91,101 @@ default_init_memmap(struct Page *base, size_t n) {
     }
 }
 
-static struct Page *
-default_alloc_pages(size_t n) {
-    assert(n > 0);
+static struct Page* default_alloc_pages(size_t n) {
+    assert(n > 0);  // 确保请求的页面数大于零
+    
     if (n > nr_free) {
-        return NULL;
+        return NULL;  // 如果请求的页面数大于当前可用页面数，则返回 NULL
     }
-    struct Page *page = NULL;
-	//lab3 todo
-	
-    return page;
+    
+    struct Page* page = NULL;
+    list_entry_t* best_fit_le = NULL;
+    size_t best_fit_size =  ((size_t)-1);  // 用来记录最合适的块的大小（初始为最大值）
+    
+    // 1. 遍历整个空闲链表，选择最合适的块（即最小且大于等于 n 的空闲块）
+    list_entry_t* le = &free_list;
+    while ((le = list_next(le)) != &free_list) {
+        struct Page* p = le2page(le, page_link);
+        if (p->property >= n && p->property < best_fit_size) {
+            // 如果当前块能容纳请求的 n 页，且比之前找到的块更合适（更小）
+            best_fit_size = p->property;
+            page = p;
+            best_fit_le = le;
+        }
+    }
+
+    // 2. 如果找到合适的空闲块，则进行分配
+    if (page != NULL) {
+        list_entry_t* prev = list_prev(&(page->page_link));
+        list_del(&(page->page_link));  // 从空闲链表中删除该块
+        
+        if (page->property > n) {
+            // 如果当前块大于请求的页面数，进行分割
+            struct Page* new_page = page + n;  // 剩余的空闲块
+            new_page->property = page->property - n;
+            SetPageProperty(new_page);  // 设置新块为空闲块头
+            list_add(prev, &(new_page->page_link));  // 将新块插入空闲链表中
+        }
+
+        // 3. 更新空闲页计数
+        nr_free -= n;  // 减少空闲页数
+        ClearPageProperty(page);  // 标记该块为已分配
+
+    }
+
+    return page;  // 返回分配的块
 }
+
 
 static void
 default_free_pages(struct Page *base, size_t n) {
     assert(n > 0);
-	//lab3 todo
+    struct Page *p = base;
+    for (; p != base + n; p ++) {
+        assert(!PageReserved(p) && !PageProperty(p));
+        p->flags = 0;
+        set_page_ref(p, 0);
+    }
+    base->property = n;
+    SetPageProperty(base);
+    nr_free += n;
+
+    if (list_empty(&free_list)) {
+        list_add(&free_list, &(base->page_link));
+    } else {
+        list_entry_t* le = &free_list;
+        while ((le = list_next(le)) != &free_list) {
+            struct Page* page = le2page(le, page_link);
+            if (base < page) {
+                list_add_before(le, &(base->page_link));
+                break;
+            } else if (list_next(le) == &free_list) {
+                list_add(le, &(base->page_link));
+				break;
+            }
+        }
+    }
+
+    list_entry_t* le = list_prev(&(base->page_link));
+    if (le != &free_list) {
+        p = le2page(le, page_link);
+        if (p + p->property == base) {
+            p->property += base->property;
+            ClearPageProperty(base);
+            list_del(&(base->page_link));
+            base = p;
+        }
+    }
+
+    le = list_next(&(base->page_link));
+    if (le != &free_list) {
+        p = le2page(le, page_link);
+        if (base + base->property == p) {
+            base->property += p->property;
+            ClearPageProperty(p);
+            list_del(&(p->page_link));
+        }
+    }
 }
 
 static size_t
@@ -301,6 +380,6 @@ const struct pmm_manager default_pmm_manager = {
     .alloc_pages = default_alloc_pages,
     .free_pages = default_free_pages,
     .nr_free_pages = default_nr_free_pages,
-    .check = default_check,
+    .check = best_fit_check,
 };
 

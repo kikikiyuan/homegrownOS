@@ -300,6 +300,6 @@ const struct pmm_manager default_pmm_manager = {
     .alloc_pages = default_alloc_pages,
     .free_pages = default_free_pages,
     .nr_free_pages = default_nr_free_pages,
-    .check = default_check,
+    .check = best_fit_check,
 };
 
