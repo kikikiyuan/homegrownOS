@@ -293,55 +293,107 @@ static inline void page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
 
 
 void page_remove_ptx(pde_t *pgdir, uintptr_t la) {
+    // 获取页表项指针
     pte_t *pte = &((pte_t *)KADDR(PDE_ADDR(*pgdir)))[PTX(la)];
-    if (!(*pte & PTE_V)){ 
-		return;
-	}
 
-	page_remove_pte(NULL, la, pte);
+    // 如果该虚拟地址没有映射（PTE_V标志为0），则直接返回
+    if (!(*pte & PTE_V)) {
+        return;
+    }
 
-	//todo
-	panic("Not Implemented!\n");
-	
+    // 移除该虚拟地址对应的页表项
+    page_remove_pte(NULL, la, pte);
+
+    // 获取页目录项对应的页（即页表页面）
+    struct Page *pt_page = pde2page(*pgdir);
+
+    // 减少页表页面的引用计数
+    page_ref_dec(pt_page);
+
+    // 如果页表页面的引用计数为0，释放该页面并清空页目录项
+    if (page_ref(pt_page) == 0) {
+        free_page(pt_page);
+        *pgdir = 0;  // 清空页目录项，表示该页目录项无效
+    }
 }
+
 
 void page_remove_pdx0(pde_t *pgdir, uintptr_t la) {
-	pde_t *pdep0 = &((pde_t *)KADDR(PDE_ADDR(*pgdir)))[PDX0(la)];
-    if (!(*pdep0 & PTE_V)){ 
-		return;
-	}
+    // 获取第一级页目录项（PDE0）
+    pde_t *pdep0 = &((pde_t *)KADDR(PDE_ADDR(*pgdir)))[PDX0(la)];
 
-	page_remove_ptx(pdep0, la);
+    // 如果该虚拟地址在此层（PDE0）没有有效映射，直接返回
+    if (!(*pdep0 & PTE_V)) {
+        return;
+    }
 
-	//lab6 todo 
-	panic("Not Implemented!\n");
+    // 移除该PDE0项对应的页表项
+    page_remove_ptx(pdep0, la);
 
+    // 再次检查PDE0项，如果没有有效映射，表示可以释放该PDE0页
+    if (!(*pdep0 & PTE_V)) {
+        struct Page *pd0_page = pde2page(*pgdir);
+
+        // 减少PDE0页的引用计数
+        page_ref_dec(pd0_page);
+
+        // 如果PDE0页的引用计数为0，释放该页并清空页目录项
+        if (page_ref(pd0_page) == 0) {
+            // 释放PDE0页
+            free_page(pd0_page);
+            // 清空pgdir指向的PDE1项，表示该PDE1项无效
+            *pgdir = 0;
+        }
+    }
 }
+
 
 void page_remove_pdx1(pde_t *pgdir, uintptr_t la) {
-	pde_t *pdep1 = &((pde_t *)KADDR(PDE_ADDR(*pgdir)))[PDX1(la)];
-    if (!(*pdep1 & PTE_V)){ 
-		return;
-	}
+    // 获取PDE1数组，并根据PDX1(la)查找对应的PDE1项
+    pde_t *pdep1 = &((pde_t *)KADDR(PDE_ADDR(*pgdir)))[PDX1(la)];
 
-	page_remove_pdx0(pdep1, la);
+    // 如果该PDE1项没有有效映射，直接返回
+    if (!(*pdep1 & PTE_V)) {
+        return;
+    }
 
-	//lab6 todo 
-	panic("Not Implemented!\n");
+    // 进入下一层，移除对应PDE1项下的PDE0项
+    page_remove_pdx0(pdep1, la);
 
+    // 如果PDE1项被清零，表示该PDE1项已无效，需要处理PDE1页
+    if (!(*pdep1 & PTE_V)) {
+        // 获取PDE1页的物理页面
+        struct Page *pd1_page = pde2page(*pgdir);
+
+        // 减少PDE1页的引用计数
+        page_ref_dec(pd1_page);
+
+        // 如果PDE1页的引用计数为0，释放该页并清空pgdir指向的PDE2项
+        if (page_ref(pd1_page) == 0) {
+            // 释放PDE1页
+            free_page(pd1_page);
+            // 清空pgdir指向的PDE2项，表示该PDE2项无效
+            *pgdir = 0;
+        }
+    }
 }
+
 
 void page_remove_pdx2(pde_t *pgdir, uintptr_t la) {
-	pde_t *pdep2 = &pgdir[PDX2(la)];
-    if (!(*pdep2 & PTE_V)){ 
-		return;
-	}
+    // 获取PDE2数组并查找对应的PDE2项
+    pde_t *pdep2 = &pgdir[PDX2(la)];
 
-	page_remove_pdx1(pdep2, la);
+    // 如果该PDE2项没有有效映射，直接返回
+    if (!(*pdep2 & PTE_V)) {
+        return;
+    }
 
-	//lab6 todo 
-	panic("Not Implemented!\n");
+    // 进入下一层（PDE2 -> PDE1），继续移除相应的PDE1项
+    page_remove_pdx1(pdep2, la);
+
+    // 顶层页表（PDE2页）是静态分配的boot_page_table，不需要做引用计数和释放
 }
+
 
 
 // page_remove - free an Page which is related linear address la and has an
