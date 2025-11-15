@@ -111,21 +111,32 @@ swap_out(struct mm_struct *mm, int n, int in_tick)
      return i;
 }
 
-int
-swap_in(struct mm_struct *mm, uintptr_t addr, struct Page **ptr_result)
-{
-	 //lab5 todo
+// swap_in 函数
+int swap_in(struct mm_struct *mm, uintptr_t addr, struct Page **ptr_result) {
+    struct Page *page;
 
-	 panic("Not Implemented!");
-	 //(1)分配一页
-	
-     //(2)利用addr对应的pte将内容从swapfs中读入(1)中的物理页
+    // (1) 分配一页物理内存
+    if ((page = alloc_page()) == NULL) {
+        return -1;  // 分配失败
+    }
 
-	 //(3)将(1)中分配的物理页通过 ptr_result返回
+    // (2) 获取页表项并读取swap entry
+    pte_t *ptep = get_pte(mm->pgdir, addr, 0);
+    if (ptep == NULL) {
+        free_page(page);
+        return -1;  // 页表项异常
+    }
 
-     return 0;
+    // (3) 从swapfs读取数据到物理页
+    if (swapfs_read(*ptep, page) != 0) {
+        free_page(page);
+        return -1;  // 读盘失败
+    }
+
+    // (4) 返回页面指针
+    *ptr_result = page;
+    return 0;  // 成功
 }
-
 
 
 static inline void

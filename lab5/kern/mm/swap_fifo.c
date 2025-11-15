@@ -40,35 +40,49 @@ _fifo_init_mm(struct mm_struct *mm)
 /*
  * (3)_fifo_map_swappable: According FIFO PRA, we should link the most recent arrival page at the back of pra_list_head qeueue
  */
-static int
-_fifo_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, int swap_in)
-{
-    list_entry_t *head=(list_entry_t*) mm->sm_priv;
-    list_entry_t *entry=&(page->pra_page_link);
- 
+static int _fifo_map_swappable(struct mm_struct *mm, uintptr_t addr,
+                               struct Page *page, int swap_in) {
+    list_entry_t *head = (list_entry_t *)mm->sm_priv;
+    list_entry_t *entry = &(page->pra_page_link);
+
+    // 确保链表头和页面链表项都有效
     assert(entry != NULL && head != NULL);
-    /*lab5 todo*/ 
-    //(1)link the most recent arrival page at the back of the pra_list_head qeueue.
-	panic("Not Implemented!");
+
+    // 设置页面的虚拟地址
+    page->pra_vaddr = addr;
+
+    // FIFO 调度策略：将新页面插入链表尾部
+    list_add_before(head, entry);
+
     return 0;
 }
+
 /*
  *  (4)_fifo_swap_out_victim: According FIFO PRA, we should unlink the  earliest arrival page in front of pra_list_head qeueue,
  *                            then set the addr of addr of this page to ptr_page.
  */
-static int
-_fifo_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tick)
-{
-     list_entry_t *head=(list_entry_t*) mm->sm_priv;
-         assert(head != NULL);
-     assert(in_tick==0);
-     /* Select the victim */
-     /*lab5 todo*/ 
-     //(1)  unlink the  earliest arrival page in front of pra_list_head qeueue
-     //(2)  set the addr of addr of this page to ptr_page
-	panic("Not Implemented!");
+static int _fifo_swap_out_victim(struct mm_struct *mm, struct Page **ptr_page, int in_tick) {
+    list_entry_t *head = (list_entry_t *)mm->sm_priv;
+    assert(head != NULL);
+    assert(in_tick == 0);
+
+    // 如果队列为空，返回 NULL，表示没有页面需要交换出去
+    if (list_empty(head)) {
+        *ptr_page = NULL;
+        return 0;
+    }
+
+    // FIFO 调度策略：选择队列头部的页面作为受害者（最早加入的页面）
+    list_entry_t *entry = head->next;
+    list_del(entry);
+
+    // 获取受害者页面，并将其返回
+    struct Page *page = le2page(entry, pra_page_link);
+    *ptr_page = page;
+
     return 0;
 }
+
 
 static int
 _fifo_check_swap(void) {

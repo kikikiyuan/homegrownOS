@@ -343,7 +343,6 @@ do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr) {
     //If the addr is in the range of a mm's vma?
     if (vma == NULL || vma->vm_start > addr) {
         cprintf("not valid addr %x, and  can not find it in vma\n", addr);
-		while(1);
         goto failed;
     }
 
@@ -408,22 +407,25 @@ do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr) {
         */
         if (swap_init_ok) {
             struct Page *page = NULL;
-			//lab5 todo
 
-			panic("Not Implemented!");
+            // (1) 从swap空间加载页面
+            if (swap_in(mm, addr, &page) != 0 || page == NULL) {
+                // 从swap加载页面失败，输出错误信息
+                cprintf("swap_in in do_pgfault failed\n");
+                goto failed;
+            }
 
-            //(1）According to the mm AND addr, try
-            //to load the content of right disk page
-            //    into the memory which page managed.
-			
-            //(2) According to the mm,
-		    //addr AND page, setup the
-		    //map of phy addr <--->
-		    //logical addr
-			
-            //(3) make the page swappable.
-			
-			
+            // (2) 将页面映射到页表
+            if (page_insert(mm->pgdir, page, addr, perm) != 0) {
+                // 建立页面映射失败，输出错误信息
+                cprintf("page_insert in do_pgfault failed\n");
+                goto failed;
+            }
+
+            // (3) 标记该页面可被交换，交由页面替换算法管理
+            swap_map_swappable(mm, addr, page, 1);
+
+            // 记录该页面的虚拟地址
             page->pra_vaddr = addr;
         } else {
             cprintf("no swap_init_ok but ptep is %x, failed\n", *ptep);
